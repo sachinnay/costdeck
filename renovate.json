@@ -11,5 +11,52 @@
   "forkProcessing": "enabled",
   "baseBranchPatterns": [
     "main"
+  ],
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "groupName": "security",
+    "commitMessagePrefix": "chore(deps):",
+    "schedule": ["at any time"],
+    "minimumReleaseAge": null
+  },
+  "packageRules": [
+    {
+      "description": ["Go and npm: no routine version PRs, only security PRs (vulnerabilityAlerts above)"],
+      "matchManagers": ["gomod", "npm"],
+      "enabled": false
+    },
+    {
+      "description": ["The Kubernetes libraries must move together or the build breaks on mismatched apimachinery/client-go/controller-runtime"],
+      "matchManagers": ["gomod"],
+      "matchPackageNames": ["k8s.io/**", "sigs.k8s.io/**"],
+      "groupName": "kubernetes"
+    },
+    {
+      "description": ["GitHub Actions are pinned by SHA: monthly, grouped, at most 5 open PRs"],
+      "matchManagers": ["github-actions"],
+      "schedule": ["* * 1 * *"],
+      "groupName": "github-actions",
+      "commitMessagePrefix": "ci(deps):",
+      "prConcurrentLimit": 5
+    },
+    {
+      "description": ["Docker base images are pinned by digest: monthly, grouped, no major bumps"],
+      "matchManagers": ["dockerfile"],
+      "schedule": ["* * 1 * *"],
+      "groupName": "docker",
+      "commitMessagePrefix": "build(deps):",
+      "prConcurrentLimit": 5
+    },
+    {
+      "description": ["Docker: ignore major version updates"],
+      "matchManagers": ["dockerfile"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
+    },
+    {
+      "description": ["14-day cooldown. Only registries that publish release dates are covered (Docker Hub yes, gcr.io/distroless no), so merge a distroless digest bump only after it is 14 days old"],
+      "matchManagers": ["github-actions", "dockerfile"],
+      "minimumReleaseAge": "14 days"
+    }
   ]
 }
