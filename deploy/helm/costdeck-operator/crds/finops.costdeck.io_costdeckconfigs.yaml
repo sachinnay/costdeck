@@ -1,0 +1,1310 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.20.1
+  name: costdeckconfigs.finops.costdeck.io
+spec:
+  group: finops.costdeck.io
+  names:
+    kind: CostDeckConfig
+    listKind: CostDeckConfigList
+    plural: costdeckconfigs
+    shortNames:
+    - cdc
+    singular: costdeckconfig
+  scope: Namespaced
+  versions:
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        description: |-
+          CostDeckConfig is the Schema for the costdeckconfigs API.
+          It is a singleton resource (one per namespace, conventionally named "default")
+          that holds all provider and integration settings.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: spec defines the desired configuration
+            properties:
+              alerts:
+                description: Alerts configures cost anomaly alerts.
+                properties:
+                  anomalies:
+                    description: Anomalies alerts when a namespace's daily cost jumps
+                      above its recent average.
+                    properties:
+                      enabled:
+                        description: Enabled turns anomaly alerts on.
+                        type: boolean
+                      minimumDaily:
+                        description: |-
+                          MinimumDaily is the smallest daily increase worth an alert, in the cost currency,
+                          so small namespaces do not page anyone. Defaults to "1".
+                        pattern: ^[0-9]+(\.[0-9]+)?$
+                        type: string
+                      percent:
+                        description: |-
+                          Percent above the average of the seven days before that counts as an anomaly.
+                          Defaults to 30.
+                        maximum: 1000
+                        minimum: 5
+                        type: integer
+                    type: object
+                  performanceRisks:
+                    description: |-
+                      PerformanceRisks alerts the channels that take alerts about new critical performance
+                      risks, such as OOM kills, crash loops, evictions and CPU throttling, at most once a
+                      day per risk, and lists the open ones in the digest.
+                    properties:
+                      enabled:
+                        description: Enabled turns performance risk alerts on.
+                        type: boolean
+                    type: object
+                type: object
+              allocation:
+                description: |-
+                  Allocation decides how cost that belongs to no team is charged in showback and
+                  chargeback: capacity no pod requests, and namespaces everyone shares.
+                properties:
+                  idle:
+                    description: |-
+                      Idle is how capacity no pod requests is charged: separate (its own line, the
+                      default) or proportional (spread over the namespaces by the compute they request).
+                    enum:
+                    - separate
+                    - proportional
+                    type: string
+                  sharedNamespaces:
+                    description: |-
+                      SharedNamespaces are charged to the other namespaces instead of to themselves:
+                      names or patterns such as kube-* or monitoring.
+                    items:
+                      type: string
+                    maxItems: 100
+                    type: array
+                    x-kubernetes-list-type: set
+                  sharedSplit:
+                    description: |-
+                      SharedSplit spreads the shared namespaces' cost by the compute the others request
+                      (proportional, the default) or evenly.
+                    enum:
+                    - proportional
+                    - even
+                    type: string
+                type: object
+              auth:
+                description: Auth configures single sign-on and local login.
+                properties:
+                  disableLocalLogin:
+                    description: |-
+                      DisableLocalLogin hides the username/password form once SSO works. The built-in
+                      admin account (COSTDECK_AUTH_USER/PASSWORD) then only serves as break-glass access
+                      through the API.
+                    type: boolean
+                  entra:
+                    description: Entra configures Microsoft Entra ID single sign-on.
+                    properties:
+                      authorityHost:
+                        default: https://login.microsoftonline.com
+                        description: |-
+                          AuthorityHost is the Entra login endpoint; override it for sovereign clouds
+                          (https://login.microsoftonline.us, https://login.chinacloudapi.cn). It must be
+                          HTTPS: the client secret is sent to it.
+                        pattern: ^https://[^/\s]+/?$
+                        type: string
+                      autoProvision:
+                        default: true
+                        description: |-
+                          AutoProvision lets any user of the tenant sign in with DefaultRole. When false, only
+                          users matched by GroupRoleMapping or an app role may sign in.
+                        type: boolean
+                      clientId:
+                        description: ClientID is the application (client) ID of the
+                          app registration.
+                        maxLength: 128
+                        type: string
+                      clientSecretRef:
+                        description: ClientSecretRef names the Secret holding the
+                          client secret under CLIENT_SECRET.
+                        type: string
+                      defaultRole:
+                        default: viewer
+                        description: |-
+                          DefaultRole is granted to users who match no group or app role mapping:
+                          viewer, operator or admin.
+                        enum:
+                        - viewer
+                        - operator
+                        - admin
+                        type: string
+                      enabled:
+                        description: Enabled shows the "Sign in with Microsoft" button
+                          and accepts Entra ID sign-ins.
+                        type: boolean
+                      groupRoleMapping:
+                        additionalProperties:
+                          type: string
+                        description: |-
+                          GroupRoleMapping maps Entra group object IDs (the "groups" claim) to a role. The most
+                          privileged match wins. App roles named admin/operator/viewer are honoured as well.
+                        type: object
+                      redirectUrl:
+                        description: |-
+                          RedirectURL must match a redirect URI of the app registration exactly. Either
+                          https://<host>/api/auth/entra/callback (server-side) or https://<host>/auth/callback
+                          (single-page app). Derived from the request host when empty.
+                        maxLength: 512
+                        type: string
+                      skipSslVerify:
+                        description: |-
+                          SkipSSLVerify disables TLS verification towards Entra. Only for SSL-inspecting
+                          corporate proxies.
+                        type: boolean
+                      tenantId:
+                        description: |-
+                          TenantID is the directory (tenant) ID or a verified domain. "organizations" accepts
+                          work accounts from any tenant (multi-tenant app registration); then only
+                          GroupRoleMapping grants access, because app roles and auto-provisioning could be
+                          abused from a foreign tenant.
+                        maxLength: 128
+                        type: string
+                    type: object
+                    x-kubernetes-validations:
+                    - message: tenantId and clientId are required when Entra SSO is
+                        enabled
+                      rule: '!self.enabled || (size(self.tenantId) > 0 && size(self.clientId)
+                        > 0)'
+                  oidc:
+                    description: |-
+                      OIDC configures single sign-on with any other OpenID Connect provider: Keycloak,
+                      Okta, Auth0, Dex, Google and the like.
+                    properties:
+                      autoProvision:
+                        default: true
+                        description: |-
+                          AutoProvision lets anyone the provider signs in use CostDeck with DefaultRole. When
+                          false, only users matched by GroupRoleMapping, RoleMapping or a costdeck. role may
+                          sign in.
+                        type: boolean
+                      clientId:
+                        description: ClientID of the client registered for CostDeck.
+                        maxLength: 256
+                        type: string
+                      clientSecretRef:
+                        description: |-
+                          ClientSecretRef names the Secret holding the client secret under CLIENT_SECRET.
+                          Without one the client is public and PKCE alone protects the code.
+                        type: string
+                      defaultRole:
+                        default: viewer
+                        description: 'DefaultRole is granted to users who match no
+                          group or role: viewer, operator or admin.'
+                        enum:
+                        - viewer
+                        - operator
+                        - admin
+                        type: string
+                      displayName:
+                        description: |-
+                          DisplayName labels the button: "Sign in with <DisplayName>". Defaults to "single
+                          sign-on".
+                        maxLength: 64
+                        type: string
+                      enabled:
+                        description: Enabled shows the sign-in button and accepts
+                          sign-ins from the provider.
+                        type: boolean
+                      groupRoleMapping:
+                        additionalProperties:
+                          type: string
+                        description: |-
+                          GroupRoleMapping maps groups (as GroupsClaim lists them) to a role. The most
+                          privileged match wins.
+                        type: object
+                      groupsClaim:
+                        description: |-
+                          GroupsClaim is the claim listing the user's groups; dotted paths reach nested claims.
+                          Defaults to groups (Keycloak's group membership mapper; full paths such as /team-a
+                          match a mapping with or without the leading slash).
+                        maxLength: 128
+                        type: string
+                      issuerUrl:
+                        description: |-
+                          IssuerURL is the provider's issuer, whose /.well-known/openid-configuration is read,
+                          e.g. https://keycloak.example.com/realms/costdeck. It must be HTTPS: the client
+                          secret is sent to it.
+                        maxLength: 512
+                        pattern: ^https://[^\s]+$
+                        type: string
+                      redirectUrl:
+                        description: |-
+                          RedirectURL must match a redirect URI of the client exactly:
+                          https://<host>/api/auth/oidc/callback. Derived from the request host when empty.
+                        maxLength: 512
+                        type: string
+                      roleMapping:
+                        additionalProperties:
+                          type: string
+                        description: |-
+                          RoleMapping maps roles (as RolesClaim lists them) to a role. The most privileged match
+                          wins.
+                        type: object
+                      rolesClaim:
+                        description: |-
+                          RolesClaim is a claim listing roles, e.g. realm_access.roles (Keycloak realm roles) or
+                          resource_access.costdeck.roles (client roles). A role counts when RoleMapping maps it,
+                          or when it is named costdeck.viewer, costdeck.operator or costdeck.admin: plain names
+                          such as admin are often shared by every application of a realm.
+                        maxLength: 128
+                        type: string
+                      scopes:
+                        description: |-
+                          Scopes requested besides openid. Defaults to profile and email; add groups or roles
+                          when the provider only sends those claims for a scope.
+                        items:
+                          type: string
+                        type: array
+                        x-kubernetes-list-type: atomic
+                      skipSslVerify:
+                        description: |-
+                          SkipSSLVerify disables TLS verification towards the provider. Only for providers with
+                          a certificate the operator cannot verify, and SSL-inspecting proxies.
+                        type: boolean
+                    type: object
+                    x-kubernetes-validations:
+                    - message: issuerUrl and clientId are required when OIDC sign-in
+                        is enabled
+                      rule: '!self.enabled || (size(self.issuerUrl) > 0 && size(self.clientId)
+                        > 0)'
+                type: object
+              billing:
+                description: Billing reconciles estimates with the cloud bill.
+                properties:
+                  aws:
+                    description: |-
+                      AWS reads the amortized EC2 cost from Cost Explorer (ce:GetCostAndUsage) for the
+                      instances that carry the cluster's tag. The tag must be activated as a cost
+                      allocation tag in the billing console.
+                    properties:
+                      tagKey:
+                        description: |-
+                          TagKey is the cost allocation tag on the cluster's instances. Defaults to
+                          aws:eks:cluster-name.
+                        type: string
+                      tagValue:
+                        description: TagValue is the tag's value, usually the cluster
+                          name.
+                        type: string
+                    required:
+                    - tagValue
+                    type: object
+                  azure:
+                    description: |-
+                      Azure reads the amortized virtual machine cost of the cluster's node resource group
+                      from Cost Management (Cost Management Reader on that group).
+                    properties:
+                      resourceGroup:
+                        description: ResourceGroup is the AKS node resource group,
+                          e.g. MC_rg_cluster_westeurope.
+                        pattern: ^[-\w._()]{1,90}$
+                        type: string
+                    required:
+                    - resourceGroup
+                    type: object
+                  enabled:
+                    description: Enabled turns reconciliation on.
+                    type: boolean
+                  gcp:
+                    description: |-
+                      GCP reads the Compute Engine cost of the cluster's nodes, credits included, from the
+                      billing export in BigQuery (BigQuery Job User, and Data Viewer on the dataset).
+                    properties:
+                      clusterName:
+                        description: ClusterName is the GKE cluster name, matched
+                          against the goog-k8s-cluster-name label.
+                        type: string
+                      table:
+                        description: Table is the billing export table, project.dataset.table.
+                        pattern: ^[a-z][-a-z0-9]{4,28}[a-z0-9]\.[A-Za-z0-9_]+\.[A-Za-z0-9_]+$
+                        type: string
+                    required:
+                    - clusterName
+                    - table
+                    type: object
+                type: object
+              budgets:
+                description: |-
+                  Budgets cap monthly spending of the cluster, namespaces, teams or environments and
+                  alert when they are reached or forecast to be exceeded.
+                items:
+                  description: Budget caps what part of the cluster may cost in a
+                    calendar month.
+                  properties:
+                    forecast:
+                      description: Forecast also alerts, once a month, when spending
+                        is forecast to exceed the limit.
+                      type: boolean
+                    monthlyLimit:
+                      description: MonthlyLimit is the budget for a calendar month
+                        in the cost currency, e.g. "1200".
+                      pattern: ^[0-9]+(\.[0-9]+)?$
+                      type: string
+                    name:
+                      description: Name identifies the budget in the dashboard and
+                        in alerts.
+                      maxLength: 63
+                      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                      type: string
+                    namespaces:
+                      description: Namespaces are the namespaces a namespace budget
+                        covers together, besides Value.
+                      items:
+                        maxLength: 63
+                        pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                        type: string
+                      maxItems: 500
+                      type: array
+                      x-kubernetes-list-type: set
+                    scope:
+                      description: |-
+                        Scope is what the budget covers: the whole cluster, namespaces, a team (the
+                        namespaces whose team label has Value) or an environment.
+                      enum:
+                      - cluster
+                      - namespace
+                      - team
+                      - environment
+                      type: string
+                    thresholds:
+                      description: |-
+                        Thresholds are percentages of the limit that send an alert when spending reaches
+                        them. Defaults to 80 and 100.
+                      items:
+                        type: integer
+                      maxItems: 5
+                      type: array
+                      x-kubernetes-list-type: set
+                    value:
+                      description: |-
+                        Value names the team or environment (production, non-production, system or
+                        unclassified), or one namespace. Empty for the cluster.
+                      type: string
+                  required:
+                  - monthlyLimit
+                  - name
+                  - scope
+                  type: object
+                maxItems: 100
+                type: array
+                x-kubernetes-list-map-keys:
+                - name
+                x-kubernetes-list-type: map
+              calendars:
+                description: |-
+                  Calendars are shared lists of days, such as public holidays, that schedules name in
+                  spec.calendars to apply them as exceptions.
+                items:
+                  description: |-
+                    HolidayCalendar is a named list of days on which the schedules that use it keep their
+                    targets in State, typically down for public holidays.
+                  properties:
+                    days:
+                      description: Days of the calendar.
+                      items:
+                        description: CalendarDay is one day of a HolidayCalendar.
+                        properties:
+                          date:
+                            description: Date is the day, "2026-12-25".
+                            pattern: ^[0-9]{4}-[0-9]{2}-[0-9]{2}$
+                            type: string
+                          name:
+                            description: Name of the day, such as "Christmas Day".
+                            maxLength: 100
+                            type: string
+                        required:
+                        - date
+                        type: object
+                      maxItems: 400
+                      type: array
+                      x-kubernetes-list-type: atomic
+                    name:
+                      description: Name schedules use to refer to the calendar.
+                      maxLength: 63
+                      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                      type: string
+                    state:
+                      description: State targets are kept in on these days. Defaults
+                        to Down.
+                      enum:
+                      - Up
+                      - Down
+                      type: string
+                    timezone:
+                      description: |-
+                        Timezone the days are counted in. Defaults to the timezone of the schedule that
+                        uses the calendar.
+                      type: string
+                  required:
+                  - days
+                  - name
+                  type: object
+                maxItems: 50
+                type: array
+                x-kubernetes-list-map-keys:
+                - name
+                x-kubernetes-list-type: map
+              clusterName:
+                description: |-
+                  ClusterName defines an optional identifier for this cluster.
+                  Used in multi-cluster environments to distinguish bot commands.
+                type: string
+              clusters:
+                description: |-
+                  Clusters are other Cost Deck installations this one shows next to its own on the
+                  Clusters page, read with a viewer API token of each.
+                items:
+                  description: RemoteCluster is another Cost Deck installation.
+                  properties:
+                    name:
+                      description: Name is how the Clusters page calls it.
+                      maxLength: 63
+                      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                      type: string
+                    secretRef:
+                      description: |-
+                        SecretRef names the Secret holding a viewer API token of that installation under
+                        the cluster's name.
+                      type: string
+                    skipTlsVerify:
+                      description: SkipTLSVerify accepts its certificate without checking
+                        it.
+                      type: boolean
+                    url:
+                      description: URL is where its dashboard answers, such as https://costdeck.eu.example.com.
+                      pattern: ^https?://[^\s]+$
+                      type: string
+                  required:
+                  - name
+                  - url
+                  type: object
+                maxItems: 50
+                type: array
+                x-kubernetes-list-map-keys:
+                - name
+                x-kubernetes-list-type: map
+              dashboardUrl:
+                description: |-
+                  DashboardURL is the address people open Cost Deck at, e.g.
+                  https://costdeck.example.com. The sleep page links to it to wake a namespace.
+                maxLength: 512
+                pattern: ^https?://[^\s]+$
+                type: string
+              features:
+                description: Features holds core CostDeck feature toggles
+                properties:
+                  cloudPricingApi:
+                    description: |-
+                      CloudPricingAPI prices the cluster's nodes with the AWS Price List API (on-demand,
+                      Linux) and derives the per-core and per-GiB rates from them. Needs the
+                      pricing:GetProducts permission. Ignored when custom rates are set in spec.pricing.
+                    type: boolean
+                type: object
+              integrations:
+                description: Integrations holds AI and messenger configurations
+                properties:
+                  ai:
+                    description: AI assistant and reports
+                    properties:
+                      baseUrl:
+                        description: |-
+                          BaseURL overrides the provider endpoint (gateways, proxies, self-hosted models).
+                          Cloud providers may not point at loopback or link-local addresses.
+                        type: string
+                      enabled:
+                        description: Enabled toggles the AI integration on/off
+                        type: boolean
+                      model:
+                        description: |-
+                          Model is the model ID, e.g. "claude-opus-5-5". Defaults per provider when empty;
+                          the settings page lists the models the configured key can use.
+                        type: string
+                      monthlyTokenBudget:
+                        description: |-
+                          MonthlyTokenBudget caps the tokens (input and output) the assistant and AI reports
+                          may use in a calendar month (UTC); once it is spent they refuse new requests until
+                          the next month. 0 means no cap.
+                        format: int64
+                        minimum: 0
+                        type: integer
+                      provider:
+                        description: |-
+                          Provider is anthropic, openai, gemini, or local (any OpenAI-compatible endpoint such
+                          as Ollama, vLLM or an internal gateway).
+                        enum:
+                        - anthropic
+                        - openai
+                        - gemini
+                        - local
+                        type: string
+                      secretRef:
+                        description: SecretRef is the name of the K8s Secret holding
+                          the AI API key
+                        type: string
+                      skipSslVerify:
+                        description: SkipSSLVerify allows skipping TLS certificate
+                          verification for custom endpoints
+                        type: boolean
+                    type: object
+                  mcp:
+                    description: MCP Server configuration
+                    properties:
+                      enabled:
+                        description: |-
+                          Enabled serves MCP (Streamable HTTP) at /mcp on the dashboard's host and port,
+                          behind the same authentication as the API: a session or an API token.
+                        type: boolean
+                      port:
+                        description: 'Deprecated: MCP is served on the API port at
+                          /mcp; this field is ignored.'
+                        type: integer
+                    type: object
+                  messenger:
+                    description: Messenger integrations
+                    properties:
+                      webex:
+                        description: Webex bot
+                        properties:
+                          enabled:
+                            description: Enabled toggles the Webex integration on/off
+                            type: boolean
+                          notifyTransitions:
+                            description: |-
+                              NotifyTransitions posts to RoomID whenever a ScalingGroup or ScalingConfig finishes
+                              scaling up or down, with who triggered it and the estimated savings.
+                            type: boolean
+                          roomId:
+                            description: |-
+                              RoomID is the Webex space the bot answers in and posts notifications to. When empty
+                              the bot answers in every space it is a member of.
+                            type: string
+                          secretRef:
+                            description: |-
+                              SecretRef is the name of the K8s Secret holding the Webex bot token (key BOT_TOKEN).
+                              Adding a WEBHOOK_SECRET key switches delivery from polling to signed webhooks
+                              (POST /api/webex/webhook).
+                            type: string
+                        type: object
+                    type: object
+                  notifications:
+                    description: |-
+                      Notifications sends alerts, digests and scaling changes to Slack, Microsoft Teams or
+                      email, besides the Webex space.
+                    properties:
+                      email:
+                        description: Email sends through an SMTP server.
+                        properties:
+                          enabled:
+                            description: Enabled turns the channel on.
+                            type: boolean
+                          events:
+                            description: Events limits what is sent; empty sends everything.
+                            items:
+                              description: |-
+                                NotificationEvent is a kind of message Cost Deck sends: schedules (a schedule finished
+                                scaling up or down), alerts (budgets, cost anomalies, namespaces about to be deleted) or
+                                digests (the scheduled cost summary).
+                              enum:
+                              - schedules
+                              - alerts
+                              - digests
+                              type: string
+                            type: array
+                            x-kubernetes-list-type: set
+                          from:
+                            description: From is the sender address.
+                            type: string
+                          host:
+                            description: Host is the SMTP server, such as smtp.example.com.
+                            maxLength: 253
+                            type: string
+                          port:
+                            description: Port of the SMTP server. Defaults to 587,
+                              or 465 with Security tls.
+                            format: int32
+                            maximum: 65535
+                            minimum: 1
+                            type: integer
+                          secretRef:
+                            description: SecretRef names the Secret holding the SMTP
+                              password under PASSWORD.
+                            type: string
+                          security:
+                            description: |-
+                              Security is starttls (the default: upgrade the connection before signing in), tls
+                              (TLS from the start, usually port 465) or none (a relay inside the cluster; no
+                              password is sent without TLS).
+                            enum:
+                            - starttls
+                            - tls
+                            - none
+                            type: string
+                          to:
+                            description: To lists the recipients.
+                            items:
+                              type: string
+                            maxItems: 50
+                            type: array
+                            x-kubernetes-list-type: atomic
+                          username:
+                            description: Username signs in to the SMTP server; empty
+                              sends without signing in.
+                            type: string
+                        type: object
+                      slack:
+                        description: Slack posts through an incoming webhook.
+                        properties:
+                          enabled:
+                            description: Enabled turns the channel on.
+                            type: boolean
+                          events:
+                            description: Events limits what the channel receives;
+                              empty sends everything.
+                            items:
+                              description: |-
+                                NotificationEvent is a kind of message Cost Deck sends: schedules (a schedule finished
+                                scaling up or down), alerts (budgets, cost anomalies, namespaces about to be deleted) or
+                                digests (the scheduled cost summary).
+                              enum:
+                              - schedules
+                              - alerts
+                              - digests
+                              type: string
+                            type: array
+                            x-kubernetes-list-type: set
+                          secretRef:
+                            description: |-
+                              SecretRef names the Secret holding the webhook URL under WEBHOOK_URL: whoever has
+                              the URL can post to the channel, so it is kept out of the CR.
+                            type: string
+                        type: object
+                      teams:
+                        description: |-
+                          Teams posts through a Microsoft Teams Workflows webhook ("Post to a channel when a
+                          webhook request is received"), as an Adaptive Card.
+                        properties:
+                          enabled:
+                            description: Enabled turns the channel on.
+                            type: boolean
+                          events:
+                            description: Events limits what the channel receives;
+                              empty sends everything.
+                            items:
+                              description: |-
+                                NotificationEvent is a kind of message Cost Deck sends: schedules (a schedule finished
+                                scaling up or down), alerts (budgets, cost anomalies, namespaces about to be deleted) or
+                                digests (the scheduled cost summary).
+                              enum:
+                              - schedules
+                              - alerts
+                              - digests
+                              type: string
+                            type: array
+                            x-kubernetes-list-type: set
+                          secretRef:
+                            description: |-
+                              SecretRef names the Secret holding the webhook URL under WEBHOOK_URL: whoever has
+                              the URL can post to the channel, so it is kept out of the CR.
+                            type: string
+                        type: object
+                    type: object
+                  victoriaMetrics:
+                    description: VictoriaMetrics metrics integration
+                    properties:
+                      enabled:
+                        description: Enabled toggles VictoriaMetrics as the metrics
+                          source (instead of metrics-server)
+                        type: boolean
+                      endpoint:
+                        description: |-
+                          Endpoint is the PromQL-compatible query URL
+                          e.g. "http://vmselect.monitoring.svc:8481/select/0/prometheus"
+                        type: string
+                      labelSelector:
+                        description: |-
+                          LabelSelector is added to every query as extra PromQL label matchers, e.g.
+                          `cluster="prod-eu"`. Required when one VictoriaMetrics instance stores several
+                          clusters: without it, namespaces with the same name are summed across clusters.
+                        maxLength: 512
+                        type: string
+                      retentionDays:
+                        default: 7
+                        description: |-
+                          RetentionDays is the lookback window for historical queries: how far back the
+                          namespace usage charts can go, and the history behind right-sizing advice, which
+                          is capped at 14 days.
+                        minimum: 1
+                        type: integer
+                      secretRef:
+                        description: |-
+                          SecretRef is the name of the K8s Secret holding VictoriaMetrics credentials
+                          (keys: BEARER_TOKEN or USERNAME/PASSWORD, and optionally CA_CERT with a PEM bundle)
+                        type: string
+                      skipSslVerify:
+                        description: |-
+                          SkipSSLVerify disables TLS certificate verification for the endpoint.
+                          Prefer adding CA_CERT to the credentials Secret instead.
+                        type: boolean
+                    type: object
+                type: object
+              namespaceTTL:
+                description: |-
+                  NamespaceTTL deletes preview namespaces some time after they were created. Off by
+                  default; it also needs namespaceTTL.enabled in the Helm chart.
+                properties:
+                  dryRun:
+                    description: DryRun works out what would be deleted and when,
+                      and deletes and sends nothing.
+                    type: boolean
+                  enabled:
+                    description: Enabled turns deleting on.
+                    type: boolean
+                  selector:
+                    description: |-
+                      Selector picks the namespaces, such as env=preview. Required: an empty selector
+                      would match every namespace.
+                    maxLength: 1024
+                    type: string
+                  ttl:
+                    description: TTL is how long after its creation a namespace is
+                      deleted, such as 168h.
+                    type: string
+                  warnBefore:
+                    description: |-
+                      WarnBefore sends an alert to the notification channels this long before a
+                      deletion. Defaults to 24h; 0s sends none.
+                    type: string
+                type: object
+              pricing:
+                description: Pricing sets custom cost rates.
+                properties:
+                  cpuCoreHour:
+                    description: CPUCoreHour is the price of one CPU core for one
+                      hour, e.g. "0.031".
+                    pattern: ^[0-9]+(\.[0-9]+)?$
+                    type: string
+                  currency:
+                    description: Currency is the ISO 4217 code shown next to costs.
+                      Defaults to USD.
+                    pattern: ^[A-Za-z]{3}$
+                    type: string
+                  gpuHour:
+                    description: |-
+                      GPUHour is the price of one GPU for one hour, e.g. "0.81", for every GPU model.
+                      Without it a GPU costs its share of the node's list price, or an estimate for its
+                      model.
+                    pattern: ^[0-9]+(\.[0-9]+)?$
+                    type: string
+                  llmModels:
+                    description: |-
+                      LLMModels price the LLM tokens applications report through OpenTelemetry, per
+                      million tokens. LiteLLM reports what its tokens cost itself.
+                    items:
+                      description: LLMModelPrice is what a model's tokens cost.
+                      properties:
+                        inputPer1M:
+                          description: InputPer1M and OutputPer1M are the price of
+                            a million input and output tokens.
+                          pattern: ^[0-9]+(\.[0-9]+)?$
+                          type: string
+                        model:
+                          description: |-
+                            Model as the metrics name it (gen_ai.request.model), e.g. "gpt-4o"; globs such as
+                            "claude-sonnet-*" work. The first matching entry wins.
+                          maxLength: 200
+                          minLength: 1
+                          type: string
+                        outputPer1M:
+                          pattern: ^[0-9]+(\.[0-9]+)?$
+                          type: string
+                      required:
+                      - inputPer1M
+                      - model
+                      - outputPer1M
+                      type: object
+                    maxItems: 100
+                    type: array
+                    x-kubernetes-list-type: atomic
+                  loadBalancerMonth:
+                    description: |-
+                      LoadBalancerMonth is the price of one LoadBalancer Service for a month, before
+                      traffic, e.g. "18". Without it the cloud's list price is used.
+                    pattern: ^[0-9]+(\.[0-9]+)?$
+                    type: string
+                  memoryGiBHour:
+                    description: MemoryGBHour is the price of one GiB of memory for
+                      one hour, e.g. "0.0042".
+                    pattern: ^[0-9]+(\.[0-9]+)?$
+                    type: string
+                  storageGiBMonth:
+                    description: |-
+                      StorageGiBMonth is the price of one GiB of persistent volume for a month, e.g.
+                      "0.08". Without it volumes are priced at the cloud's list price for their disk type.
+                    pattern: ^[0-9]+(\.[0-9]+)?$
+                    type: string
+                type: object
+              providers:
+                description: Providers holds cloud provider configurations
+                properties:
+                  aws:
+                    description: AWS provider configuration
+                    properties:
+                      discoveryTags:
+                        additionalProperties:
+                          type: string
+                        description: |-
+                          DiscoveryTags defines tag key-value pairs used to filter AWS resources during discovery.
+                          Only resources matching ALL specified tags will be discovered.
+                        type: object
+                      enabled:
+                        description: Enabled toggles the AWS provider on/off
+                        type: boolean
+                      region:
+                        description: Region is the default AWS region (e.g. "us-east-1")
+                        pattern: ^[a-z]{2}-[a-z]+-\d$
+                        type: string
+                      resourceTypes:
+                        description: |-
+                          ResourceTypes lists which AWS resource types to discover and manage.
+                          Supported values: "aurora", "ec2"
+                        items:
+                          type: string
+                        type: array
+                        x-kubernetes-list-type: set
+                      secretRef:
+                        description: |-
+                          SecretRef is the name of the K8s Secret holding AWS credentials
+                          (keys: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
+                        type: string
+                    type: object
+                  azure:
+                    description: Azure provider configuration
+                    properties:
+                      discoveryTags:
+                        additionalProperties:
+                          type: string
+                        description: DiscoveryTags limits discovery to resources carrying
+                          all of these tags.
+                        type: object
+                      enabled:
+                        description: Enabled toggles the Azure provider on/off
+                        type: boolean
+                      resourceTypes:
+                        description: ResourceTypes lists the types to discover and
+                          manage; all when empty.
+                        items:
+                          enum:
+                          - vm
+                          - postgres
+                          - mysql
+                          type: string
+                        type: array
+                        x-kubernetes-list-type: set
+                      secretRef:
+                        description: |-
+                          SecretRef names the Secret holding a service principal (AZURE_TENANT_ID,
+                          AZURE_CLIENT_ID, AZURE_CLIENT_SECRET). Without it the pod identity is used (AKS
+                          workload identity or a managed identity).
+                        type: string
+                      subscriptionId:
+                        description: SubscriptionID is the subscription whose resources
+                          are discovered and scaled.
+                        pattern: ^$|^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+                        type: string
+                      tenantId:
+                        description: TenantID is the Entra ID tenant of the service
+                          principal.
+                        type: string
+                    type: object
+                  gcp:
+                    description: GCP provider configuration
+                    properties:
+                      discoveryLabels:
+                        additionalProperties:
+                          type: string
+                        description: DiscoveryLabels limits discovery to resources
+                          carrying all of these labels.
+                        type: object
+                      enabled:
+                        description: Enabled toggles the GCP provider on/off
+                        type: boolean
+                      projectId:
+                        description: |-
+                          ProjectID is the project whose resources are discovered and scaled; defaults to the
+                          project of the service account key.
+                        type: string
+                      resourceTypes:
+                        description: ResourceTypes lists the types to discover and
+                          manage; all when empty.
+                        items:
+                          enum:
+                          - gce
+                          - cloudsql
+                          type: string
+                        type: array
+                        x-kubernetes-list-type: set
+                      secretRef:
+                        description: |-
+                          SecretRef names the Secret holding a service account key (credentials.json).
+                          Without it the pod identity is used (GKE workload identity).
+                        type: string
+                    type: object
+                type: object
+              reports:
+                description: Reports schedules the cost digest.
+                properties:
+                  digest:
+                    description: Digest posts a cost summary to the notification channels
+                      on a schedule.
+                    properties:
+                      enabled:
+                        description: |-
+                          Enabled turns the scheduled digest on. It needs a notification channel: Webex
+                          with a space ID, Slack, Teams or email.
+                        type: boolean
+                      frequency:
+                        description: |-
+                          Frequency is weekly (sent on Mondays, covering the previous Monday to Sunday) or
+                          monthly (sent on the 1st, covering the previous month).
+                        enum:
+                        - weekly
+                        - monthly
+                        type: string
+                      time:
+                        description: Time of day to send it, HH:MM in Timezone. Defaults
+                          to 09:00.
+                        pattern: ^([01][0-9]|2[0-3]):[0-5][0-9]$
+                        type: string
+                      timezone:
+                        description: Timezone is an IANA time zone such as Europe/Berlin.
+                          Defaults to UTC.
+                        type: string
+                    type: object
+                type: object
+              rightsizing:
+                description: |-
+                  Rightsizing lets operators act on right-sizing advice: apply it to workloads, or
+                  open a pull request with it in a GitOps repository. Both are off by default.
+                properties:
+                  apply:
+                    description: |-
+                      Apply lets operators apply advice to a workload from the dashboard: its pod requests
+                      are patched, which rolls its pods. Workloads a GitOps tool manages are left to pull
+                      requests.
+                    type: boolean
+                  git:
+                    description: |-
+                      Git opens pull requests with the advice in the repository the workloads are
+                      deployed from.
+                    properties:
+                      apiUrl:
+                        description: |-
+                          APIURL is the API's address: https://api.github.com, https://gitlab.com/api/v4, or
+                          a Gitea's https://gitea.example.com/api/v1. Defaults by provider (not for Gitea).
+                        type: string
+                      baseBranch:
+                        description: BaseBranch is where pull requests go. Defaults
+                          to main.
+                        type: string
+                      path:
+                        description: Path limits the search for a workload's manifest
+                          to a directory, such as deploy/.
+                        type: string
+                      provider:
+                        description: Provider is github, gitlab or gitea.
+                        enum:
+                        - github
+                        - gitlab
+                        - gitea
+                        type: string
+                      repository:
+                        description: Repository is owner/name on GitHub and Gitea,
+                          or the project path on GitLab.
+                        maxLength: 255
+                        type: string
+                      secretRef:
+                        description: |-
+                          SecretRef names the Secret holding an access token that can push branches and open
+                          pull requests, under TOKEN.
+                        type: string
+                    required:
+                    - provider
+                    - repository
+                    type: object
+                  guardMinutes:
+                    description: |-
+                      GuardMinutes is how long after a change Cost Deck watches the workload's new pods
+                      and puts the old requests back if one is OOMKilled, restarts or crash-loops.
+                      Defaults to 30.
+                    format: int32
+                    maximum: 1440
+                    minimum: 5
+                    type: integer
+                type: object
+            type: object
+          status:
+            description: status defines the observed state
+            properties:
+              aws:
+                description: AWS provider status
+                properties:
+                  connected:
+                    description: Connected indicates whether the provider credentials
+                      are valid and the provider is reachable
+                    type: boolean
+                  discoveredResources:
+                    description: DiscoveredResources is the count of resources found
+                      during the last discovery
+                    type: integer
+                  error:
+                    description: Error contains the last error message if connection
+                      failed
+                    type: string
+                  lastChecked:
+                    description: LastChecked is when connectivity was last verified
+                    format: date-time
+                    type: string
+                  message:
+                    description: Message describes a successful check, e.g. which
+                      identity the credentials map to.
+                    type: string
+                required:
+                - connected
+                type: object
+              azure:
+                description: Azure provider status
+                properties:
+                  connected:
+                    description: Connected indicates whether the provider credentials
+                      are valid and the provider is reachable
+                    type: boolean
+                  discoveredResources:
+                    description: DiscoveredResources is the count of resources found
+                      during the last discovery
+                    type: integer
+                  error:
+                    description: Error contains the last error message if connection
+                      failed
+                    type: string
+                  lastChecked:
+                    description: LastChecked is when connectivity was last verified
+                    format: date-time
+                    type: string
+                  message:
+                    description: Message describes a successful check, e.g. which
+                      identity the credentials map to.
+                    type: string
+                required:
+                - connected
+                type: object
+              billing:
+                description: Billing is the last reconciliation with the cloud bill.
+                properties:
+                  billed:
+                    description: Billed and List are the compared totals.
+                    type: string
+                  currency:
+                    description: Currency of Billed.
+                    type: string
+                  error:
+                    description: Error says why the last attempt failed.
+                    type: string
+                  factor:
+                    description: |-
+                      Factor is billed cost over list price for the compared days; it scales every
+                      compute cost. Below 1 means discounts.
+                    type: string
+                  from:
+                    description: From and To are the first and last compared days
+                      (UTC, inclusive).
+                    type: string
+                  lastChecked:
+                    description: LastChecked is when the bill was last read.
+                    format: date-time
+                    type: string
+                  lastReconciled:
+                    description: LastReconciled is when Factor was last computed.
+                    format: date-time
+                    type: string
+                  list:
+                    type: string
+                  source:
+                    description: Source names the bill, e.g. "AWS Cost Explorer".
+                    type: string
+                  to:
+                    type: string
+                type: object
+              conditions:
+                description: Conditions represent the current state of the CostDeckConfig
+                  resource.
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+              gcp:
+                description: GCP provider status
+                properties:
+                  connected:
+                    description: Connected indicates whether the provider credentials
+                      are valid and the provider is reachable
+                    type: boolean
+                  discoveredResources:
+                    description: DiscoveredResources is the count of resources found
+                      during the last discovery
+                    type: integer
+                  error:
+                    description: Error contains the last error message if connection
+                      failed
+                    type: string
+                  lastChecked:
+                    description: LastChecked is when connectivity was last verified
+                    format: date-time
+                    type: string
+                  message:
+                    description: Message describes a successful check, e.g. which
+                      identity the credentials map to.
+                    type: string
+                required:
+                - connected
+                type: object
+              victoriaMetrics:
+                description: |-
+                  VictoriaMetrics reports whether the configured metrics endpoint is reachable and
+                  actually holds the container metrics CostDeck queries.
+                properties:
+                  connected:
+                    description: Connected indicates whether the provider credentials
+                      are valid and the provider is reachable
+                    type: boolean
+                  discoveredResources:
+                    description: DiscoveredResources is the count of resources found
+                      during the last discovery
+                    type: integer
+                  error:
+                    description: Error contains the last error message if connection
+                      failed
+                    type: string
+                  lastChecked:
+                    description: LastChecked is when connectivity was last verified
+                    format: date-time
+                    type: string
+                  message:
+                    description: Message describes a successful check, e.g. which
+                      identity the credentials map to.
+                    type: string
+                required:
+                - connected
+                type: object
+              webex:
+                description: Webex reports whether the bot token is valid and the
+                  bot can see its space.
+                properties:
+                  connected:
+                    description: Connected indicates whether the provider credentials
+                      are valid and the provider is reachable
+                    type: boolean
+                  discoveredResources:
+                    description: DiscoveredResources is the count of resources found
+                      during the last discovery
+                    type: integer
+                  error:
+                    description: Error contains the last error message if connection
+                      failed
+                    type: string
+                  lastChecked:
+                    description: LastChecked is when connectivity was last verified
+                    format: date-time
+                    type: string
+                  message:
+                    description: Message describes a successful check, e.g. which
+                      identity the credentials map to.
+                    type: string
+                required:
+                - connected
+                type: object
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

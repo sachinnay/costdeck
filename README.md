@@ -222,7 +222,7 @@ make test-e2e    # Kind cluster + Helm install + the regression scenarios in hac
 
 After editing `api/v1/*_types.go` or a `+kubebuilder` marker, run
 `make manifests generate` and commit the generated files with your change: CI fails when
-they differ.
+they differ. `make crds` regenerates only the CRDs and syncs them into the Helm chart.
 
 ### End-to-end suite
 
