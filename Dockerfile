@@ -11,7 +11,7 @@ RUN npm run build
 
 # Go cross-compiles natively: building on $BUILDPLATFORM keeps multi-arch images out of
 # QEMU emulation, which made arm64 builds several times slower.
-FROM --platform=$BUILDPLATFORM golang:1.27.3@sha256:2920bb124f1a2e12a1d39f0cab756ae0068441ee1da7655dec7f5e374944095b AS manager
+FROM --platform=$BUILDPLATFORM golang:1.27.4@sha256:205c7636d74e0ffbe3d007162df7d74f859f5a8c8322dfb9f907977686c126cf AS manager
 ARG TARGETOS
 ARG TARGETARCH
 ARG VERSION=dev

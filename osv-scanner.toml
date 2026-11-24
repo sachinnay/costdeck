@@ -4,11 +4,6 @@ ignoreUntil = 2026-12-03T00:00:00Z
 reason = "Cost Deck does not import golang.org/x/crypto/openpgp (govulncheck). The fix is an untagged commit after v0.58.0, the latest release; update to the first golang.org/x/crypto release with it once that release is two weeks old."
 
 [[IgnoredVulns]]
-id = "GO-2026-6860"
-ignoreUntil = 2026-11-11T00:00:00Z
-reason = "Cost Deck does not import golang.org/x/net/html (govulncheck). Update to golang.org/x/net v0.62.0 once that release is two weeks old."
-
-[[IgnoredVulns]]
-id = "GO-2026-6866"
-ignoreUntil = 2026-11-11T00:00:00Z
-reason = "Cost Deck does not import golang.org/x/net/html (govulncheck). Update to golang.org/x/net v0.62.0 once that release is two weeks old."
+id = "GO-2026-6911"
+ignoreUntil = 2026-12-07T00:00:00Z
+reason = "SSRF and credential leak via an unvalidated Location header in mcp-go's client; no fixed mcp-go release exists yet (as of 2026-11-23). Cost Deck imports only the mcp and server subpackages to host its own MCP endpoint and never the client subpackage; govulncheck (call analysis) reports the vulnerable path is not called."
