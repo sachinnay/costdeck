@@ -19,7 +19,7 @@ internal/api/ui/*
 ui/node_modules
 ui/dist
 
-# Helm charts and docs, for the transfer image (deploy/docker-transfer)
+# Helm charts and docs, for the transfer image (docker-transfer)
 !deploy/helm/**
 !docs/**
 

@@ -36,7 +36,7 @@ jobs:
             file: Dockerfile
             context: .
           - name: costdeck-operator-transfer-img
-            file: deploy/docker-transfer/Dockerfile
+            file: docker-transfer/Dockerfile
             context: .
     runs-on: ubuntu-latest
     steps:
