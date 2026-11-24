@@ -4,6 +4,11 @@
       "name": "costdeck-operator",
       "file": "Dockerfile",
       "context": "."
+    },
+    {
+      "name": "costdeck-operator-transfer-img",
+      "file": "deploy/docker-transfer/Dockerfile",
+      "context": "."
     }
   ],
   "platforms": "linux/amd64,linux/arm64"

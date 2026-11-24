@@ -35,6 +35,9 @@ jobs:
           - name: costdeck-operator
             file: Dockerfile
             context: .
+          - name: costdeck-operator-transfer-img
+            file: deploy/docker-transfer/Dockerfile
+            context: .
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

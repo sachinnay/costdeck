@@ -19,6 +19,7 @@ jobs:
       matrix:
         component:
           - name: costdeck-operator
+          - name: costdeck-operator-transfer-img
     if: (github.event_name == 'delete' && github.event.ref_type == 'branch') || github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
