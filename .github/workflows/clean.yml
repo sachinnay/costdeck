@@ -1,0 +1,45 @@
+name: Branch Deleted
+
+on:
+  delete:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  TAG_NAME: ${{ github.event.ref || github.ref }}
+
+jobs:
+  delete:
+    strategy:
+      fail-fast: false
+      matrix:
+        component:
+          - name: costdeck-operator
+    if: (github.event_name == 'delete' && github.event.ref_type == 'branch') || github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Prepare Tag
+        run: echo "TAG_NAME=$(echo "${TAG_NAME}" | sed 's@refs/heads/@@;s@refs/pull/\([0-9]*\)/merge@pr-\1@;s@/@_@g')" >> "$GITHUB_ENV"
+      - name: Get package IDs for delete
+        id: get-ids-for-delete
+        uses: Netcracker/get-package-ids@84bc8eb8bed50218be76e671b3a24c35a1300979 # v0.0.1
+        with:
+          component-name: ${{ matrix.component.name }}
+          component-tag: ${{ env.TAG_NAME }}
+          access-token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/delete-package-versions@e5bc658cc4c965c472efe991f8beea3981499c55 # v5.0.0
+        with:
+          package-name: ${{ matrix.component.name }}
+          package-type: "container"
+          package-version-ids: ${{ steps.get-ids-for-delete.outputs.ids-for-delete }}
+        if: ${{ steps.get-ids-for-delete.outputs.ids-for-delete != '' }}

@@ -1,0 +1,10 @@
+{
+  "components": [
+    {
+      "name": "costdeck-operator",
+      "file": "Dockerfile",
+      "context": "."
+    }
+  ],
+  "platforms": "linux/amd64,linux/arm64"
+}
