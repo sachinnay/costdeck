@@ -1,0 +1,15 @@
+{
+  "components": [
+    {
+      "name": "costdeck-operator",
+      "file": "Dockerfile",
+      "context": "."
+    },
+    {
+      "name": "costdeck-operator-transfer-img",
+      "file": "docker-transfer/Dockerfile",
+      "context": "."
+    }
+  ],
+  "platforms": "linux/amd64,linux/arm64"
+}

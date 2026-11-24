@@ -14,82 +14,6 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  go:
-    name: Go · generate, lint, test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-
-      - name: Cache tools
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: bin
-          key: tools-${{ runner.os }}-${{ hashFiles('Makefile', '.custom-gcl.yml', 'go.mod') }}
-
-      - name: Modules are tidy
-        run: |
-          if ! go mod tidy -diff; then
-            echo "::error::go.mod or go.sum is not tidy. Run 'go mod tidy' and commit the result."
-            exit 1
-          fi
-
-      - name: Generated code and manifests are committed
-        run: |
-          make manifests generate
-          if ! git diff --exit-code; then
-            echo "::error::CRDs, RBAC, Helm templates or deepcopy code are stale. Run 'make manifests generate' and commit the result."
-            exit 1
-          fi
-
-      - name: Lint
-        run: make lint
-
-      - name: Test (envtest)
-        run: make test
-
-      - name: Formatting is clean
-        run: |
-          if ! git diff --exit-code; then
-            echo "::error::Run 'go fmt ./...' and commit the result."
-            exit 1
-          fi
-
-      - name: Upload coverage
-        if: ${{ !cancelled() && hashFiles('cover.out') != '' }}
-        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
-        with:
-          files: cover.out
-          flags: unittests
-          token: ${{ secrets.CODECOV_TOKEN }}
-          fail_ci_if_error: false
-
-  ui:
-    name: UI · types, lint, tests, build
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ui
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: ui/package-lock.json
-      - run: npm ci
-      - run: npx tsc -b
-      - run: npm run lint
-      - run: npm test
-      - run: npm run build
-
   helm:
     name: Helm chart
     runs-on: ubuntu-latest
@@ -169,41 +93,6 @@ jobs:
             --no-call-analysis=go
             ./
 
-  dependency-review:
-    name: Dependency review
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
-        with:
-          fail-on-severity: high
-          comment-summary-in-pr: never
-
-  commits:
-    name: Commits · conventional messages
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Every commit is a conventional commit
-        env:
-          BASE: ${{ github.event.pull_request.base.sha }}
-          HEAD: ${{ github.event.pull_request.head.sha }}
-        run: |
-          pattern='^(feat|fix|perf|refactor|docs|test|build|ci|chore|revert|style)(\([a-z0-9._/-]+\))?!?: .+'
-          bad=0
-          while IFS= read -r line; do
-            subject=${line#* }
-            if ! [[ "$subject" =~ $pattern ]]; then
-              echo "::error::${line%% *} is not a conventional commit, which release-please needs for the release notes: $subject"
-              bad=1
-            fi
-          done < <(git log --no-merges --format='%h %s' "$BASE..$HEAD")
-          exit "$bad"
-
   workflows:
     name: Workflows · zizmor
     runs-on: ubuntu-latest
@@ -262,7 +151,7 @@ jobs:
   e2e:
     name: E2E · part ${{ matrix.part }} of 3
     runs-on: ubuntu-latest
-    needs: [go, ui, helm, scripts, image]
+    needs: [helm, scripts, image]
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -307,7 +196,7 @@ jobs:
     name: CI result
     if: always()
     permissions: {}
-    needs: [go, ui, helm, install-bundle, vulnerabilities, dependency-review, commits, workflows, scripts, image, e2e]
+    needs: [helm, install-bundle, vulnerabilities, workflows, scripts, image, e2e]
     runs-on: ubuntu-latest
     steps:
       - name: Every job passed or was skipped

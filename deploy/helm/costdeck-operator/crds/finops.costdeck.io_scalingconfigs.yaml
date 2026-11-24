@@ -1,0 +1,561 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.20.1
+  name: scalingconfigs.finops.costdeck.io
+spec:
+  group: finops.costdeck.io
+  names:
+    kind: ScalingConfig
+    listKind: ScalingConfigList
+    plural: scalingconfigs
+    singular: scalingconfig
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.targetNamespace
+      name: Namespace
+      type: string
+    - jsonPath: .status.mode
+      name: Mode
+      type: string
+    - jsonPath: .status.desiredState
+      name: Desired
+      type: string
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .status.nextTransition.time
+      name: Next change
+      type: string
+    - jsonPath: .status.estimatedHourlySavings
+      name: Saving/h
+      priority: 1
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1
+    schema:
+      openAPIV3Schema:
+        description: ScalingConfig is the Schema for the scalingconfigs API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: spec defines the desired state of ScalingConfig
+            properties:
+              active:
+                description: |-
+                  Active is a manual override. While it is set the schedule is ignored completely:
+                  true forces the namespace up, false forces it down. Remove the field (null) to
+                  return to the schedule, or set ActiveUntil so that happens automatically.
+                  status.mode shows which of the two is in control.
+                type: boolean
+              activeUntil:
+                description: |-
+                  ActiveUntil bounds the manual override in time. When set, Active is honoured only
+                  until this timestamp; afterwards the schedule takes over again without anyone having
+                  to clear the override by hand. Ignored when Active is null.
+                format: date-time
+                type: string
+              calendars:
+                description: |-
+                  Calendars names shared holiday calendars (CostDeckConfig spec.calendars) whose days
+                  apply as exceptions too.
+                items:
+                  type: string
+                maxItems: 10
+                type: array
+                x-kubernetes-list-type: set
+              dryRun:
+                description: |-
+                  DryRun works out what the schedule would do and reports it (phase DryRun and the
+                  DryRun condition) without scaling anything, to try a schedule before it acts. To the
+                  schedules that depend on it, a group in dry run counts as up.
+                type: boolean
+              exceptions:
+                description: Exceptions override the schedules on given dates (holidays,
+                  release weekends).
+                items:
+                  description: |-
+                    ScheduleException overrides the weekly schedules on given dates: a public holiday the
+                    environment stays down, or a release weekend it stays up. A manual override (spec.active)
+                    still beats it. When exceptions overlap, the one that began last wins, so a release
+                    weekend inside a holiday break keeps the environment up.
+                  properties:
+                    end:
+                      description: |-
+                        End is the last day it applies (the whole day) or the moment it stops applying.
+                        Defaults to the end of the Start day.
+                      pattern: ^[0-9]{4}-[0-9]{2}-[0-9]{2}(T([01][0-9]|2[0-3]):[0-5][0-9])?$
+                      type: string
+                    name:
+                      description: Name says what the exception is for, such as "New
+                        Year" or "Release 2.4".
+                      maxLength: 100
+                      type: string
+                    start:
+                      description: Start is the first day ("2026-12-24") or the moment
+                        ("2026-12-24T18:00") it applies.
+                      pattern: ^[0-9]{4}-[0-9]{2}-[0-9]{2}(T([01][0-9]|2[0-3]):[0-5][0-9])?$
+                      type: string
+                    state:
+                      description: State the target is kept in while the exception
+                        applies.
+                      enum:
+                      - Up
+                      - Down
+                      type: string
+                    timezone:
+                      description: |-
+                        Timezone of Start and End (e.g. "Europe/Berlin"). Defaults to the timezone of the
+                        first schedule, then to UTC.
+                      type: string
+                  required:
+                  - start
+                  - state
+                  type: object
+                maxItems: 100
+                type: array
+                x-kubernetes-list-type: atomic
+              exclusions:
+                description: |-
+                  Exclusions lists workloads that are never scaled down, by name or prefix glob
+                  ("redis-*"), or by the kind of their controller ("owner:Elasticsearch") for workloads
+                  an operator manages. They also apply to the CronJobs CostDeck suspends and the KEDA
+                  ScaledObjects it pauses while the namespace is down.
+                items:
+                  type: string
+                type: array
+                x-kubernetes-list-type: atomic
+              featureFlags:
+                description: |-
+                  FeatureFlags.SkipOnTimeout lets a stage of the sequence that is not ready within
+                  TimeoutMinutes stop holding back the next one. Without it each stage waits until its
+                  workloads are ready. A group that runs this namespace uses its own setting.
+                properties:
+                  skipOnTimeout:
+                    description: |-
+                      SkipOnTimeout if true, a stage that does not reach the target state within
+                      TimeoutMinutes stops holding back the next stage. Its namespaces keep being
+                      reconciled and are listed in status.skippedNamespaces until they get there.
+                      Default: false (each stage waits until all of its namespaces are at the target state)
+                    type: boolean
+                  timeoutMinutes:
+                    default: 5
+                    description: TimeoutMinutes is how long each stage may take when
+                      SkipOnTimeout is true.
+                    maximum: 30
+                    minimum: 1
+                    type: integer
+                type: object
+              hibernate:
+                description: |-
+                  Hibernate stops services that operators run in the namespace, such as databases,
+                  after its workloads and starts them before. Their operators' StatefulSets and
+                  Deployments are left to the operators. Needs hibernation.enabled in the Helm chart.
+                items:
+                  description: |-
+                    HibernateRule stops services an operator runs in a namespace, such as a database, together
+                    with the namespace's workloads: they stop after the workloads and start before them. A
+                    preset covers a known operator; otherwise apiVersion, kind and replicasField describe the
+                    resources. Only what CostDeck stopped is started again.
+                  properties:
+                    apiVersion:
+                      description: |-
+                        APIVersion and Kind of the resources a rule without a preset stops, such as
+                        redis.example.com/v1 Redis.
+                      type: string
+                    kind:
+                      type: string
+                    names:
+                      description: |-
+                        Names limits the rule to resources with these names; globs such as "pg-*" work.
+                        Empty means every matching resource in the namespace.
+                      items:
+                        type: string
+                      type: array
+                      x-kubernetes-list-type: atomic
+                    preset:
+                      description: |-
+                        Preset is a built-in rule: cnpg (CloudNativePG clusters, by declarative hibernation),
+                        zalando-postgres (Zalando postgres-operator clusters, numberOfInstances to zero) or
+                        strimzi (Strimzi KafkaConnect, KafkaMirrorMaker2 and KafkaBridge; Kafka clusters
+                        themselves cannot be stopped).
+                      enum:
+                      - cnpg
+                      - zalando-postgres
+                      - strimzi
+                      type: string
+                    readyField:
+                      description: |-
+                        ReadyField is the dotted path of the ready replica count in the status, such as
+                        status.readyReplicas. Without it a resource counts as stopped or started once patched.
+                      type: string
+                    replicasField:
+                      description: |-
+                        ReplicasField is the dotted path of the replica count, such as spec.replicas: zero to
+                        stop, the earlier count to start.
+                      type: string
+                  type: object
+                  x-kubernetes-validations:
+                  - message: set a preset, or apiVersion, kind and replicasField
+                    rule: has(self.preset) != (has(self.apiVersion) && has(self.kind)
+                      && has(self.replicasField))
+                maxItems: 20
+                type: array
+                x-kubernetes-list-type: atomic
+              idleAfter:
+                description: |-
+                  IdleAfter puts the namespaces to sleep inside the schedule's hours once nobody has
+                  used them for this long: no requests through Envoy Gateway, Istio or ingress-nginx and
+                  no GPU busier than 5% (DCGM) in VictoriaMetrics, counted once they have been up that
+                  long. They stay down until the schedule next starts them, at most a week, or until
+                  someone starts them by hand. Namespaces without such metrics are never treated as
+                  unused.
+                type: string
+              pauseGitOps:
+                description: |-
+                  PauseGitOps pauses the GitOps tools that would bring the workloads back while the
+                  schedule keeps them down: Flux Kustomizations and HelmReleases are suspended and Argo CD
+                  Applications lose self-heal, and they are resumed once everything is up again. Only
+                  what CostDeck paused itself is resumed. Needs gitops.pause in the Helm chart.
+                type: boolean
+              prewarm:
+                description: |-
+                  Prewarm starts the workloads ahead of each scheduled start, so they are ready when it
+                  comes: by a fixed number of minutes, or by how long recent wake-ups took.
+                properties:
+                  auto:
+                    description: |-
+                      Auto takes the lead from the slowest of the last five wake-ups (status.recentWakeUps)
+                      plus a minute, at most 30 minutes. Minutes applies until there is a wake-up to measure.
+                    type: boolean
+                  minutes:
+                    description: Minutes is the lead when Auto is off, or before the
+                      first measured wake-up.
+                    format: int32
+                    maximum: 120
+                    minimum: 0
+                    type: integer
+                type: object
+              schedules:
+                description: Schedules define periodic scaling events
+                items:
+                  description: |-
+                    ScalingSchedule defines when a namespace should be active.
+
+                    It supports two mutually exclusive forms:
+
+                      - Daily window (legacy, default): "days" lists the weekdays the window applies to and
+                        the window runs from StartTime to EndTime. If EndTime is earlier than StartTime the
+                        window is treated as overnight and spills into the following day.
+                      - Continuous weekly window: set StartDay and EndDay to define a single uninterrupted
+                        window such as Monday 00:00 -> Friday 23:59. "days" is ignored in this form. The
+                        window may wrap through Sunday midnight (e.g. Friday 20:00 -> Monday 08:00).
+                  properties:
+                    days:
+                      description: |-
+                        Days of week the daily window applies to (0-6, 0=Sunday).
+                        Required unless StartDay/EndDay are used.
+                      items:
+                        type: integer
+                      maxItems: 7
+                      type: array
+                      x-kubernetes-list-type: atomic
+                    endDay:
+                      description: |-
+                        EndDay is the weekday a continuous weekly window closes on (0-6, 0=Sunday).
+                        Must be set together with StartDay. When set, Days is ignored.
+                      maximum: 6
+                      minimum: 0
+                      type: integer
+                    endTime:
+                      description: EndTime in HH:MM format
+                      pattern: ^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$
+                      type: string
+                    startDay:
+                      description: |-
+                        StartDay is the weekday a continuous weekly window opens on (0-6, 0=Sunday).
+                        Must be set together with EndDay. When set, Days is ignored.
+                      maximum: 6
+                      minimum: 0
+                      type: integer
+                    startTime:
+                      description: StartTime in HH:MM format
+                      pattern: ^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$
+                      type: string
+                    timezone:
+                      description: |-
+                        Timezone for the schedule (e.g. "UTC", "America/New_York").
+                        If empty, local operator time is used.
+                      type: string
+                  required:
+                  - endTime
+                  - startTime
+                  type: object
+                  x-kubernetes-validations:
+                  - message: startDay and endDay must be set together to define a
+                      continuous weekly window
+                    rule: has(self.startDay) == has(self.endDay)
+                  - message: a schedule needs either days (daily window) or startDay
+                      and endDay (continuous weekly window)
+                    rule: has(self.startDay) || (has(self.days) && size(self.days)
+                      > 0)
+                maxItems: 50
+                type: array
+                x-kubernetes-list-type: atomic
+              sequence:
+                description: |-
+                  Sequence orders the namespace's workloads in stages that start first to last and stop
+                  last to first; workloads in no stage start last and stop first. Each entry is a stage:
+                  a space separated list of workload name globs ("db", "api-*"), optionally qualified
+                  as "Kind/name" or "group/version:Kind/name"; "*" matches every workload. A workload
+                  goes to the stage of its most specific pattern (exact name, then glob, then "*"), so
+                  ["*", "my-operator"] stops the operator before everything else.
+                items:
+                  type: string
+                type: array
+                x-kubernetes-list-type: atomic
+              sleepPage:
+                description: |-
+                  SleepPage points the namespaces' Gateway API HTTPRoutes at Cost Deck's sleep page while
+                  the schedule keeps them down, and back once they are up: whoever opens an application
+                  sees that it is asleep and a link to wake it, not a gateway error. Needs
+                  sleepPage.enabled in the Helm chart.
+                type: boolean
+              targetNamespace:
+                description: |-
+                  TargetNamespace is the namespace this config applies to. It cannot change: create a
+                  ScalingConfig for the other namespace, so this one restores what it scaled down.
+                type: string
+                x-kubernetes-validations:
+                - message: targetNamespace cannot change; create a ScalingConfig for
+                    the other namespace
+                  rule: self == oldSelf
+            required:
+            - targetNamespace
+            type: object
+          status:
+            description: status defines the observed state of ScalingConfig
+            properties:
+              conditions:
+                description: Conditions represent the current state of the ScalingConfig
+                  resource.
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+              currency:
+                description: Currency of EstimatedHourlySavings.
+                type: string
+              desiredState:
+                description: DesiredState is Up or Down.
+                type: string
+              estimatedHourlySavings:
+                description: |-
+                  EstimatedHourlySavings is what the workloads CostDeck keeps scaled down would cost
+                  per hour at the current rates (requests x missing replicas), e.g. "1.2400".
+                type: string
+              exception:
+                description: Exception names the exception or calendar day in force
+                  while Mode is Exception.
+                type: string
+              exceptionEndsAt:
+                description: ExceptionEndsAt is when the exception in force stops
+                  applying.
+                format: date-time
+                type: string
+              idleUntil:
+                description: |-
+                  IdleUntil is when idle auto-sleep hands the namespaces back to the schedule. Set
+                  while Mode is Idle; a manual start clears it.
+                format: date-time
+                type: string
+              lastAction:
+                description: LastAction is the timestamp of the last scaling event
+                format: date-time
+                type: string
+              mode:
+                description: |-
+                  Mode is what currently decides the desired state:
+                  Schedule (spec.schedules), ManualUp / ManualDown (spec.active is set and the
+                  schedule is ignored), Exception (a dated exception or calendar day), AlwaysOn (no
+                  usable schedule, kept up as a fail-safe), Dependency (a ScalingGroup kept up for a
+                  group that depends on it) or Idle (the schedule's hours, put to sleep for being
+                  unused, see spec.idleAfter).
+                type: string
+              nextTransition:
+                description: |-
+                  NextTransition is when the desired state next changes on its own, either at a
+                  schedule boundary or when the override expires. Unset when it never does.
+                properties:
+                  desiredState:
+                    description: 'DesiredState after the change: Up or Down.'
+                    type: string
+                  time:
+                    description: Time of the change.
+                    format: date-time
+                    type: string
+                required:
+                - desiredState
+                - time
+                type: object
+              originalReplicas:
+                additionalProperties:
+                  format: int32
+                  type: integer
+                description: |-
+                  OriginalReplicas stores the previous replica counts for restoration
+                  Key format: "Kind/Name"
+                type: object
+              overrideExpiresAt:
+                description: |-
+                  OverrideExpiresAt is when the manual override hands control back to the schedule.
+                  Unset while an override without spec.activeUntil is in force.
+                format: date-time
+                type: string
+              phase:
+                description: Phase is the current state of the config (ScaledUp, ScalingDown,
+                  ScaledDown)
+                type: string
+              prewarmMinutes:
+                description: |-
+                  PrewarmMinutes is how far ahead of each scheduled start spec.prewarm starts the
+                  workloads now.
+                format: int32
+                type: integer
+              recentWakeUps:
+                description: |-
+                  RecentWakeUps are the last scale-ups from zero, newest first, with how long each
+                  took until every target was ready.
+                items:
+                  description: WakeUp is one scale-up from zero and how long it took.
+                  properties:
+                    seconds:
+                      description: Seconds is how long it took until every target
+                        was ready.
+                      format: int32
+                      minimum: 0
+                      type: integer
+                    startedAt:
+                      description: StartedAt is when the scale-up began.
+                      format: date-time
+                      type: string
+                  required:
+                  - seconds
+                  - startedAt
+                  type: object
+                maxItems: 5
+                type: array
+                x-kubernetes-list-type: atomic
+              scaleDownAt:
+                description: ScaleDownAt is when that scale-down began.
+                format: date-time
+                type: string
+              scaleDownNodes:
+                description: |-
+                  ScaleDownNodes are the nodes the scaled workloads ran on when the last scale-down
+                  began, with what they cost then, so the realized-savings check can tell later whether
+                  they went away. Cleared once the target is up again.
+                items:
+                  description: ScaleDownNode is a node a scale-down could free.
+                  properties:
+                    hourlyCost:
+                      description: HourlyCost is what the node cost per hour when
+                        the scale-down began, e.g. "0.1920".
+                      type: string
+                    name:
+                      type: string
+                  required:
+                  - name
+                  type: object
+                maxItems: 200
+                type: array
+                x-kubernetes-list-type: atomic
+              wakeUpStartedAt:
+                description: |-
+                  WakeUpStartedAt is when the running scale-up from zero began. It is cleared once
+                  every target is ready, or when the targets go down again first.
+                format: date-time
+                type: string
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

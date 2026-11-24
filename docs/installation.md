@@ -22,25 +22,6 @@ helm upgrade --install costdeck-operator \
 ```
 
 Releases are listed on the [releases page](https://github.com/migalsp/costdeck/releases).
-Images and charts are signed keyless with cosign. To verify before installing:
-
-```bash
-cosign verify ghcr.io/migalsp/costdeck/costdeck-operator:<version> \
-  --certificate-identity-regexp 'https://github.com/migalsp/costdeck/.github/workflows/release.yml@.*' \
-  --certificate-oidc-issuer https://token.actions.githubusercontent.com
-cosign verify ghcr.io/migalsp/costdeck/charts/costdeck-operator:<version> \
-  --certificate-identity-regexp 'https://github.com/migalsp/costdeck/.github/workflows/release.yml@.*' \
-  --certificate-oidc-issuer https://token.actions.githubusercontent.com
-```
-
-The `install.yaml` and chart `.tgz` attached to a release each come with a `.sigstore.json`
-bundle, from releases after 1.6.3 on:
-
-```bash
-cosign verify-blob install.yaml --bundle install.yaml.sigstore.json \
-  --certificate-identity-regexp 'https://github.com/migalsp/costdeck/.github/workflows/release.yml@.*' \
-  --certificate-oidc-issuer https://token.actions.githubusercontent.com
-```
 
 ### Plain manifests
 
